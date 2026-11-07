@@ -3,3 +3,6 @@
 /.env.development
 /.env.production
 
+__pycache__/
+*.py[cod]
+/storepulse_edge.db
