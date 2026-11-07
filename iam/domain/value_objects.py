@@ -7,19 +7,22 @@ from enum import StrEnum
 class DeviceType(StrEnum):
     """Kind of ESP32 node, one per function (section 5.6, step 3).
 
+    The values are the same as ``IoTDeviceType`` in the StorePulse REST API and
+    the web application, so a node has one type name across the platform.
+
     Attributes:
-        STAND_INTRUSION: PIR, reed switch and RTC of a stand (MS-04).
-        STAND_CAMERA: ESP32-CAM that captures the image of a stand intrusion (MS-04).
-        STAND_SMOKE: MQ-2 and DHT22 of a stand (MS-05).
-        STAND_CONSUMPTION: PZEM-004T and YF-S201 meters of a stand (MS-06).
-        COMMON_AREA: ESP32-CAM with PIR of a corridor or access (MS-04).
+        INTRUSION_NODE: PIR, reed switch and RTC of a stand (MS-04).
+        CAMERA_NODE: ESP32-CAM that captures the image of a stand intrusion (MS-04).
+        SMOKE_NODE: MQ-2 and DHT22 of a stand (MS-05).
+        CONSUMPTION_NODE: PZEM-004T and YF-S201 meters of a stand (MS-06).
+        COMMON_AREA_NODE: ESP32-CAM with PIR of a corridor or access (MS-04).
     """
 
-    STAND_INTRUSION = "STAND_INTRUSION"
-    STAND_CAMERA = "STAND_CAMERA"
-    STAND_SMOKE = "STAND_SMOKE"
-    STAND_CONSUMPTION = "STAND_CONSUMPTION"
-    COMMON_AREA = "COMMON_AREA"
+    INTRUSION_NODE = "INTRUSION_NODE"
+    CAMERA_NODE = "CAMERA_NODE"
+    SMOKE_NODE = "SMOKE_NODE"
+    CONSUMPTION_NODE = "CONSUMPTION_NODE"
+    COMMON_AREA_NODE = "COMMON_AREA_NODE"
 
 
 class Role(StrEnum):
