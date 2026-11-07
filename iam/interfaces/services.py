@@ -45,6 +45,7 @@ class DeviceRegistrationRequest(BaseModel):
 
     device_id: str = Field(..., min_length=1, max_length=64, description="Hardware identifier of the node.")
     device_type: DeviceType = Field(..., description="Function of the node.")
+    platform_device_id: int = Field(..., gt=0, description="Identifier of the IoT device in the REST API.")
 
 
 @iam_api.route("/api/v1/iam/authentications", methods=["POST"])
@@ -85,12 +86,16 @@ def register_device():
         ``201`` with the device and its ``api_key``; ``400`` for a malformed
         payload or identifier; ``401`` without a valid access token; ``403``
         for a user who is not a gallery administrator; ``409`` when the
-        identifier is already registered; ``415`` for a non-JSON request.
+        identifier is already registered or another node is linked to the
+        platform device; ``415`` for a non-JSON request.
     """
     operator = _authenticated_user()
     registration_request = _parse_json(DeviceRegistrationRequest)
     device, api_key = _device_service().register_device(
-        registration_request.device_id, registration_request.device_type, operator
+        registration_request.device_id,
+        registration_request.device_type,
+        registration_request.platform_device_id,
+        operator,
     )
     return _with_api_key(device, api_key, 201)
 
@@ -211,6 +216,7 @@ def _device_resource(device: Device) -> dict:
     return {
         "device_id": device.device_id,
         "device_type": device.device_type.value,
+        "platform_device_id": device.platform_device_id,
         "status": "ACTIVE" if device.is_active else "REVOKED",
         "created_at": _iso(device.created_at),
         "revoked_at": _iso(device.revoked_at),
