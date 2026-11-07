@@ -1,15 +1,21 @@
 """Environment-specific configuration of the StorePulse Edge API.
 
-The values come from ``.env.<APP_ENV>`` (``development`` by default) and the
-process environment overrides them. Every value is validated here, so a wrong
+The values come from ``.env.<APP_ENV>`` (``development`` by default); variables
+already set in the process take precedence. The file is also loaded into
+``os.environ``, because some components read their settings there directly:
+``BackendClient`` (``BACKEND_API_URL``, ``BACKEND_API_TOKEN``) and
+``SynchronizationScheduler`` (``EDGE_SYNC_INTERVAL_SECONDS``).
+
+Every value the application factory needs is validated here, so a wrong
 setting stops the application before it serves any request.
 """
 
 import os
+from collections.abc import Mapping
 from pathlib import Path
 from typing import TypedDict
 
-from dotenv import dotenv_values
+from dotenv import load_dotenv
 
 
 class AppConfig(TypedDict):
@@ -18,9 +24,9 @@ class AppConfig(TypedDict):
     Attributes:
         APP_ENV: ``development`` or ``production``.
         DEBUG: Whether Flask runs in debug mode; always false in production.
-        DATABASE_PATH: Absolute path of the local SQLite database.
-        HOST: Interface the development server listens on.
-        PORT: Port the development server listens on.
+        EDGE_DATABASE_PATH: Absolute path of the local SQLite database.
+        EDGE_HOST: Interface the development server listens on.
+        EDGE_PORT: Port the development server listens on.
         JWT_SECRET: Base64 signing key shared with the StorePulse REST API, used
             to verify the access tokens of the users.
         JWT_ISSUER: Issuer the REST API writes in its access tokens.
@@ -28,19 +34,19 @@ class AppConfig(TypedDict):
 
     APP_ENV: str
     DEBUG: bool
-    DATABASE_PATH: str
-    HOST: str
-    PORT: int
+    EDGE_DATABASE_PATH: str
+    EDGE_HOST: str
+    EDGE_PORT: int
     JWT_SECRET: str
     JWT_ISSUER: str
 
 
 def load_config(project_root: Path) -> AppConfig:
-    """Load the selected dotenv file, then apply process environment overrides.
+    """Load the selected dotenv file into the environment and validate it.
 
     Args:
         project_root: Folder that contains the ``.env.<APP_ENV>`` files; a
-            relative ``DATABASE_PATH`` is resolved against it.
+            relative ``EDGE_DATABASE_PATH`` is resolved against it.
 
     Returns:
         The validated settings.
@@ -52,14 +58,8 @@ def load_config(project_root: Path) -> AppConfig:
     if environment_name not in {"development", "production"}:
         raise ValueError("APP_ENV must be 'development' or 'production'")
 
-    values = {
-        **{
-            key: value
-            for key, value in dotenv_values(project_root / f".env.{environment_name}").items()
-            if value is not None
-        },
-        **os.environ,
-    }
+    load_dotenv(project_root / f".env.{environment_name}", override=False)
+    values = os.environ
 
     configured_environment = _required(values, "APP_ENV")
     if configured_environment.strip().lower() != environment_name:
@@ -69,23 +69,23 @@ def load_config(project_root: Path) -> AppConfig:
     if environment_name == "production" and debug:
         raise ValueError("DEBUG must be false in production")
 
-    database_path = _required(values, "DATABASE_PATH").strip()
+    database_path = _required(values, "EDGE_DATABASE_PATH").strip()
     if not database_path:
-        raise ValueError("DATABASE_PATH cannot be empty")
+        raise ValueError("EDGE_DATABASE_PATH cannot be empty")
     database = Path(database_path).expanduser()
     if not database.is_absolute():
         database = project_root / database
 
     try:
-        port = int(_required(values, "PORT"))
+        port = int(_required(values, "EDGE_PORT"))
     except ValueError as error:
-        raise ValueError("PORT must be an integer") from error
+        raise ValueError("EDGE_PORT must be an integer") from error
     if not 1 <= port <= 65535:
-        raise ValueError("PORT must be between 1 and 65535")
+        raise ValueError("EDGE_PORT must be between 1 and 65535")
 
-    host = _required(values, "HOST").strip()
+    host = _required(values, "EDGE_HOST").strip()
     if not host:
-        raise ValueError("HOST cannot be empty")
+        raise ValueError("EDGE_HOST cannot be empty")
 
     jwt_secret = _required(values, "JWT_SECRET").strip()
     if not jwt_secret:
@@ -97,9 +97,9 @@ def load_config(project_root: Path) -> AppConfig:
     return {
         "APP_ENV": environment_name,
         "DEBUG": debug,
-        "DATABASE_PATH": str(database),
-        "HOST": host,
-        "PORT": port,
+        "EDGE_DATABASE_PATH": str(database),
+        "EDGE_HOST": host,
+        "EDGE_PORT": port,
         "JWT_SECRET": jwt_secret,
         "JWT_ISSUER": jwt_issuer,
     }
@@ -115,7 +115,7 @@ def _as_bool(name: str, value: str) -> bool:
     raise ValueError(f"{name} must be a boolean value")
 
 
-def _required(values: dict[str, str], name: str) -> str:
+def _required(values: Mapping[str, str], name: str) -> str:
     """Return a configured value or report the missing setting."""
     try:
         return values[name]
