@@ -1,3 +1,5 @@
+import os
+
 """Shared database infrastructure of the StorePulse Edge API.
 
 Provides the single :class:`peewee.SqliteDatabase` instance (``db``) that every
