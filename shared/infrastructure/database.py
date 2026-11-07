@@ -1,5 +1,3 @@
-import os
-
 """Shared database infrastructure of the StorePulse Edge API.
 
 Provides the single :class:`peewee.SqliteDatabase` instance (``db``) that every
@@ -7,17 +5,20 @@ bounded context's ORM models bind to, so the Edge Device keeps all its local
 data in one SQLite file and keeps working without internet (EP-09).
 
 Note:
-    ``db`` is declared unconfigured and :func:`configure_database` points it to
-    the configured file before :func:`init_db` connects it. Peewee keeps one
-    connection per thread; the Flask application closes it on teardown.
+    ``db`` is declared unconfigured: :func:`configure_database` points it to
+    the configured file and :func:`init_db` creates the tables. Peewee keeps
+    one connection per thread; the Flask application opens it before each
+    request and closes it on teardown, and background threads use
+    ``db.connection_context()``.
 """
 
 from pathlib import Path
 
-from peewee import SqliteDatabase
+from peewee import Model, SqliteDatabase
 
 # Shared SQLite database used by the ORM models of every bounded context.
-db = SqliteDatabase(None, timeout=30, pragmas={"busy_timeout": 30_000})
+# WAL lets the synchronization thread write while requests read.
+db = SqliteDatabase(None, timeout=30, pragmas={"journal_mode": "wal", "busy_timeout": 30_000})
 
 
 def configure_database(database_path: str) -> None:
@@ -31,15 +32,14 @@ def configure_database(database_path: str) -> None:
     db.init(str(path))
 
 
-def init_db() -> None:
-    """Open the database connection and create the missing tables.
+def init_db(models: list[type[Model]]) -> None:
+    """Create the missing tables of the given ORM models.
 
-    The ORM models are imported here to avoid import cycles. Calling it again
-    is safe: existing tables are left untouched. Each bounded context adds its
-    models to the list when it persists data.
+    Calling it again is safe: existing tables are left untouched. The
+    application factory passes the models of every bounded context.
+
+    Args:
+        models: ORM models to create, parents before the models that reference them.
     """
-    if db.is_closed():
-        db.connect()
-    from iam.infrastructure.models import Device
-
-    db.create_tables([Device], safe=True)
+    with db.connection_context():
+        db.create_tables(models, safe=True)
