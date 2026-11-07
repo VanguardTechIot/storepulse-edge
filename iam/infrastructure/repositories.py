@@ -16,6 +16,11 @@ class DeviceRepository:
         row = DeviceModel.get_or_none(DeviceModel.device_id == device_id)
         return None if row is None else self._to_entity(row)
 
+    def find_by_platform_device_id(self, platform_device_id: int) -> Device | None:
+        """Load the node linked to an IoT device of the REST API, if any."""
+        row = DeviceModel.get_or_none(DeviceModel.platform_device_id == platform_device_id)
+        return None if row is None else self._to_entity(row)
+
     def find_all(self) -> list[Device]:
         """Load every registered device, the most recent first."""
         query = DeviceModel.select().order_by(DeviceModel.created_at.desc())
@@ -25,6 +30,7 @@ class DeviceRepository:
         """Insert or update the persisted state of the aggregate."""
         values = {
             "device_type": device.device_type.value,
+            "platform_device_id": device.platform_device_id,
             "credential_verifier": device.credential.encode(),
             "created_at": _to_naive_utc(device.created_at),
             "revoked_at": _to_naive_utc(device.revoked_at),
@@ -41,6 +47,7 @@ class DeviceRepository:
         return Device(
             row.device_id,
             DeviceType(row.device_type),
+            row.platform_device_id,
             ApiCredential.from_encoded(row.credential_verifier),
             _to_aware_utc(row.created_at),
             _to_aware_utc(row.revoked_at),

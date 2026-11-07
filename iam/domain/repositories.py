@@ -12,6 +12,10 @@ class DeviceRepository(Protocol):
         """Load a device by its identifier, or ``None`` when it is not registered."""
         ...
 
+    def find_by_platform_device_id(self, platform_device_id: int) -> Device | None:
+        """Load the device linked to an IoT device of the REST API, or ``None``."""
+        ...
+
     def find_all(self) -> list[Device]:
         """Load every registered device, the most recent first."""
         ...

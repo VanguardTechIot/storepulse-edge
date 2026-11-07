@@ -45,22 +45,35 @@ class DeviceApplicationService:
         return device if device is not None and device.authenticate(api_key) else None
 
     def register_device(
-        self, device_id: str, device_type: DeviceType, operator: AuthenticatedUser
+        self,
+        device_id: str,
+        device_type: DeviceType,
+        platform_device_id: int,
+        operator: AuthenticatedUser,
     ) -> tuple[Device, str]:
-        """Register a node and issue its API key.
+        """Register a node, link it to its IoT device in the REST API and issue its API key.
+
+        Args:
+            device_id: Hardware identifier of the node, its serial number in the REST API.
+            device_type: Function of the node.
+            platform_device_id: Identifier of the IoT device in the REST API.
+            operator: User who registers the node.
 
         Returns:
             The registered device and its plain API key, shown only once.
 
         Raises:
             UserNotAuthorized: The operator is not a gallery administrator.
-            DeviceAlreadyRegistered: The identifier is already in use.
-            ValueError: The identifier is not valid.
+            DeviceAlreadyRegistered: The hardware identifier is already in use, or
+                another node is already linked to the IoT device.
+            ValueError: An identifier is not valid.
         """
         self._require_device_manager(operator)
         if self.device_repository.find_by_device_id(device_id.strip()) is not None:
             raise DeviceAlreadyRegistered("Device is already registered")
-        device, api_key = Device.register(device_id, device_type)
+        if self.device_repository.find_by_platform_device_id(platform_device_id) is not None:
+            raise DeviceAlreadyRegistered("Another device is already linked to that platform device")
+        device, api_key = Device.register(device_id, device_type, platform_device_id)
         return self.device_repository.save(device), api_key
 
     def list_devices(self, operator: AuthenticatedUser) -> list[Device]:

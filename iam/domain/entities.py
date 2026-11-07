@@ -21,8 +21,11 @@ class Device:
     aggregate, so the current one is never altered.
 
     Attributes:
-        device_id: Unique hardware identifier of the node (MS-01).
+        device_id: Unique hardware identifier of the node (MS-01), the same
+            serial number it has in the StorePulse REST API.
         device_type: Function of the node.
+        platform_device_id: Identifier of the IoT device in the REST API, which
+            the synchronized telemetry carries.
         credential: Verifier of the node's API key.
         created_at: UTC moment the node was registered.
         revoked_at: UTC moment the node was revoked, or ``None`` while active.
@@ -30,6 +33,7 @@ class Device:
 
     device_id: str
     device_type: DeviceType
+    platform_device_id: int
     credential: ApiCredential
     created_at: datetime
     revoked_at: datetime | None = None
@@ -41,6 +45,9 @@ class Device:
             )
         if not isinstance(self.device_type, DeviceType):
             raise TypeError("Device type must be a DeviceType")
+        if (not isinstance(self.platform_device_id, int) or isinstance(self.platform_device_id, bool)
+                or self.platform_device_id <= 0):
+            raise ValueError("Platform device identifier must be a positive integer")
         if not isinstance(self.credential, ApiCredential):
             raise TypeError("Device requires an API credential verifier")
         object.__setattr__(self, "created_at", _as_utc(self.created_at, "Device creation time"))
@@ -54,6 +61,7 @@ class Device:
         cls,
         device_id: str,
         device_type: DeviceType,
+        platform_device_id: int,
         created_at: datetime | None = None,
     ) -> tuple["Device", str]:
         """Register a node and issue its API key.
@@ -61,17 +69,19 @@ class Device:
         Args:
             device_id: Hardware identifier reported by the node.
             device_type: Function of the node.
+            platform_device_id: Identifier of the IoT device in the REST API.
             created_at: Registration moment; the current UTC time by default.
 
         Returns:
             The new device and its plain API key, which is not stored anywhere.
 
         Raises:
-            ValueError: The identifier is not valid.
+            ValueError: An identifier is not valid.
         """
         credential, api_key = ApiCredential.issue()
         identifier = device_id.strip() if isinstance(device_id, str) else device_id
-        return cls(identifier, device_type, credential, created_at or datetime.now(UTC)), api_key
+        device = cls(identifier, device_type, platform_device_id, credential, created_at or datetime.now(UTC))
+        return device, api_key
 
     @property
     def is_active(self) -> bool:

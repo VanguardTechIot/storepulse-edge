@@ -1,7 +1,9 @@
 import os
 import threading
 
+from iam.interfaces.acl.iam_context_facade import IamContextFacade
 from shared.infrastructure.database import db
+from monitoring.application.errors import DeviceAuthenticationFailed
 from monitoring.domain.services import TelemetryService
 from monitoring.infrastructure.clients import BackendTelemetryClient
 from monitoring.infrastructure.repositories import TelemetryRepository
@@ -14,9 +16,14 @@ class TelemetryApplicationService:
         self.repository = TelemetryRepository()
         self.client = BackendTelemetryClient()
         self.safety_context = SafetyContextFacade()
+        self.iam_context = IamContextFacade()
 
-    def register(self, device_id, received_at, measurements):
-        telemetry = TelemetryService.create(device_id, received_at, measurements)
+    def register(self, device_id, api_key, received_at, measurements):
+        # IAM answers with the device identifier the REST API expects in the synchronized telemetry.
+        platform_device_id = self.iam_context.authenticate_device(device_id, api_key)
+        if platform_device_id is None:
+            raise DeviceAuthenticationFailed("Invalid deviceId or API key")
+        telemetry = TelemetryService.create(platform_device_id, received_at, measurements)
         saved = self.repository.save(telemetry)
         evaluations = [self.safety_context.evaluate(m.type, m.value, m.recorded_at) for m in saved.measurements]
         saved.synced = self.synchronize(saved)
