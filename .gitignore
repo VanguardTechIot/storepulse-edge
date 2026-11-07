@@ -4,6 +4,9 @@
 /.env.production
 
 __pycache__/
+*.py[cod]
+/storepulse_edge.db
+__pycache__/
 /*.db
 /*.db-wal
 /*.db-shm
