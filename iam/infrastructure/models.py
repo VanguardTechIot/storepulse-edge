@@ -6,7 +6,7 @@ infrastructure layer: the domain and application layers reach it only through
 the repository.
 """
 
-from peewee import CharField, DateTimeField, Model
+from peewee import CharField, DateTimeField, IntegerField, Model
 
 from shared.infrastructure.database import db
 
@@ -21,6 +21,8 @@ class Device(Model):
     Attributes:
         device_id (CharField): Natural primary key, the hardware identifier.
         device_type (CharField): Function of the node (``DeviceType`` value).
+        platform_device_id (IntegerField): Identifier of the IoT device in the
+            REST API; two nodes never share it.
         credential_verifier (CharField): Salted, one-way verifier of the API key.
         created_at (DateTimeField): UTC moment of the registration.
         revoked_at (DateTimeField): UTC moment of the revocation, or ``None``.
@@ -28,6 +30,7 @@ class Device(Model):
 
     device_id = CharField(primary_key=True, max_length=64)
     device_type = CharField(max_length=32)
+    platform_device_id = IntegerField(unique=True)
     credential_verifier = CharField()
     created_at = DateTimeField()
     revoked_at = DateTimeField(null=True)
