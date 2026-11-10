@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from monitoring.domain.entities import Measurement, Telemetry
 
 MEASUREMENT_TYPES = ("TEMPERATURE", "HUMIDITY", "ELECTRICITY", "WATER", "MOTION", "SMOKE")
+CRITICAL_TYPES = ("MOTION", "SMOKE")
 
 
 class TelemetryService:

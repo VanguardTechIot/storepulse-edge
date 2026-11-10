@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 from shared.infrastructure.database import db
 from monitoring.domain.entities import Measurement, Telemetry
+from monitoring.domain.services import CRITICAL_TYPES
 from monitoring.infrastructure.models import MeasurementModel, TelemetryModel
 
 
@@ -29,6 +30,18 @@ class TelemetryRepository:
         query = (TelemetryModel.select().where(TelemetryModel.synced == False)
                  .order_by(TelemetryModel.id).limit(limit))
         return [self._to_entity(model) for model in query]
+
+    def count_all(self) -> int:
+        return TelemetryModel.select().count()
+
+    def delete_oldest_routine(self) -> bool:
+        critical = MeasurementModel.select(MeasurementModel.telemetry).where(MeasurementModel.type.in_(CRITICAL_TYPES))
+        oldest = (TelemetryModel.select().where(TelemetryModel.id.not_in(critical))
+                  .order_by(TelemetryModel.synced.desc(), TelemetryModel.id).first())
+        if oldest is None:
+            return False
+        oldest.delete_instance(recursive=True)
+        return True
 
     def count_pending(self) -> int:
         return TelemetryModel.select().where(TelemetryModel.synced == False).count()
