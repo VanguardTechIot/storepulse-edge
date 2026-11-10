@@ -17,6 +17,7 @@ class TelemetryApplicationService:
         self.client = BackendTelemetryClient()
         self.safety_context = SafetyContextFacade()
         self.iam_context = IamContextFacade()
+        self.max_stored = int(os.getenv("EDGE_MAX_STORED_TELEMETRY", "10000"))
 
     def register(self, device_id, api_key, received_at, measurements):
         # IAM answers with the device identifier the REST API expects in the synchronized telemetry.
@@ -24,10 +25,15 @@ class TelemetryApplicationService:
         if platform_device_id is None:
             raise DeviceAuthenticationFailed("Invalid deviceId or API key")
         telemetry = TelemetryService.create(platform_device_id, received_at, measurements)
+        self._make_room()
         saved = self.repository.save(telemetry)
         evaluations = [self.safety_context.evaluate(m.type, m.value, m.recorded_at) for m in saved.measurements]
         saved.synced = self.synchronize(saved)
         return saved, evaluations
+
+    def _make_room(self) -> None:
+        if self.repository.count_all() >= self.max_stored:
+            self.repository.delete_oldest_routine()
 
     def synchronize(self, telemetry) -> bool:
         if self.client.send(telemetry):
