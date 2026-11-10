@@ -20,7 +20,6 @@ class TelemetryApplicationService:
         self.max_stored = int(os.getenv("EDGE_MAX_STORED_TELEMETRY", "10000"))
 
     def register(self, device_id, api_key, received_at, measurements):
-        # IAM answers with the device identifier the REST API expects in the synchronized telemetry.
         platform_device_id = self.iam_context.authenticate_device(device_id, api_key)
         if platform_device_id is None:
             raise DeviceAuthenticationFailed("Invalid deviceId or API key")
