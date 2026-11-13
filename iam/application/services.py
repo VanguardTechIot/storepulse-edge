@@ -112,6 +112,11 @@ class DeviceApplicationService:
         return self.device_repository.save(self._find_device(device_id).revoke())
 
     def _find_device(self, device_id: str) -> Device:
+        """Load a registered device.
+
+        Raises:
+            DeviceNotFound: No device is registered with the identifier.
+        """
         device = self.device_repository.find_by_device_id(device_id)
         if device is None:
             raise DeviceNotFound("Device not found")
@@ -119,6 +124,11 @@ class DeviceApplicationService:
 
     @staticmethod
     def _require_device_manager(operator: AuthenticatedUser) -> None:
+        """Allow the operation only to the gallery administrator.
+
+        Raises:
+            UserNotAuthorized: The operator cannot manage devices.
+        """
         if not operator.can_manage_devices():
             raise UserNotAuthorized("Only the gallery administrator manages devices")
 
