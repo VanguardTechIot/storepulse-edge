@@ -8,6 +8,8 @@ class TelemetryModel(Model):
     received_at = DateTimeField()
     synced = BooleanField(default=False, index=True)
     sync_attempts = IntegerField(default=0)
+    supply_voltage = FloatField(null=True)
+    buffered_events = IntegerField(null=True)
 
     class Meta:
         database = db
