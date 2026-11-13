@@ -19,11 +19,12 @@ class TelemetryApplicationService:
         self.iam_context = IamContextFacade()
         self.max_stored = int(os.getenv("EDGE_MAX_STORED_TELEMETRY", "10000"))
 
-    def register(self, device_id, api_key, received_at, measurements):
+    def register(self, device_id, api_key, received_at, measurements, supply_voltage=None, buffered_events=None):
         platform_device_id = self.iam_context.authenticate_device(device_id, api_key)
         if platform_device_id is None:
             raise DeviceAuthenticationFailed("Invalid deviceId or API key")
-        telemetry = TelemetryService.create(platform_device_id, received_at, measurements)
+        telemetry = TelemetryService.create(platform_device_id, received_at, measurements,
+                                            supply_voltage, buffered_events)
         self._make_room()
         saved = self.repository.save(telemetry)
         evaluations = [self.safety_context.evaluate(m.type, m.value, m.recorded_at) for m in saved.measurements]

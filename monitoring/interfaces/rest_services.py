@@ -16,7 +16,8 @@ def register_telemetry():
         return jsonify({"error": "Missing X-API-Key"}), 401
     try:
         telemetry, evaluations = TelemetryApplicationService().register(
-            data.get("deviceId"), api_key, data.get("receivedAt"), data.get("measurements"))
+            data.get("deviceId"), api_key, data.get("receivedAt"), data.get("measurements"),
+            data.get("supplyVoltage"), data.get("bufferedEvents"))
     except DeviceAuthenticationFailed as error:
         return jsonify({"error": str(error)}), 401
     except ValueError as error:
