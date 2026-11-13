@@ -55,6 +55,12 @@ class AuthenticatedUser:
     role: Role
 
     def __post_init__(self) -> None:
+        """Reject token claims that do not describe a StorePulse account.
+
+        Raises:
+            ValueError: The user identifier is not positive or the email is empty.
+            TypeError: The role is not a ``Role``.
+        """
         if not isinstance(self.user_id, int) or isinstance(self.user_id, bool) or self.user_id <= 0:
             raise ValueError("User identifier must be a positive integer")
         if not isinstance(self.email, str) or not self.email.strip():
