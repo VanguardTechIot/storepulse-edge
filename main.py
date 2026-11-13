@@ -28,7 +28,7 @@ from iam.infrastructure.models import Device
 from iam.infrastructure.tokens import JwtTokenVerifier
 from iam.interfaces.services import iam_api
 from monitoring.application.services import SynchronizationScheduler
-from monitoring.infrastructure.models import MeasurementModel, TelemetryModel
+from monitoring.infrastructure.models import MeasurementModel, TelemetryModel, upgrade_telemetry_table
 from monitoring.interfaces.rest_services import monitoring_api
 from safety.application.services import SafetyRuleApplicationService
 from safety.infrastructure.models import SafetyRuleModel
@@ -49,6 +49,7 @@ def create_app() -> Flask:
     configure_database(app.config["EDGE_DATABASE_PATH"])
     init_db([Device, TelemetryModel, MeasurementModel, SafetyRuleModel])
     with db.connection_context():
+        upgrade_telemetry_table()
         SafetyRuleApplicationService().ensure_rules()
 
     app.register_blueprint(iam_api)
