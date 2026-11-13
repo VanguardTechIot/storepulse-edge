@@ -44,6 +44,11 @@ class DeviceRepository:
 
     @staticmethod
     def _to_entity(row: DeviceModel) -> Device:
+        """Rebuild the aggregate from its row, restoring the UTC timezone.
+
+        Raises:
+            ValueError: The row holds an invalid identifier, type or verifier.
+        """
         return Device(
             row.device_id,
             DeviceType(row.device_type),

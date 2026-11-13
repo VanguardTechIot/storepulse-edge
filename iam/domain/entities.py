@@ -39,6 +39,15 @@ class Device:
     revoked_at: datetime | None = None
 
     def __post_init__(self) -> None:
+        """Enforce the invariants of the aggregate and normalize its moments to UTC.
+
+        Raises:
+            ValueError: The hardware or platform identifier is not valid, a
+                moment has no timezone, or the revocation predates the
+                registration.
+            TypeError: The device type, the credential or a moment has the
+                wrong type.
+        """
         if not isinstance(self.device_id, str) or not _DEVICE_ID_PATTERN.match(self.device_id):
             raise ValueError(
                 "Device identifier must have 1 to 64 letters, digits, '.', '_', ':' or '-'"
@@ -119,7 +128,19 @@ class Device:
 
 
 def _as_utc(value: datetime, name: str) -> datetime:
-    """Validate a timezone-aware moment and convert it to UTC (ADR-0005)."""
+    """Validate a timezone-aware moment and convert it to UTC.
+
+    Args:
+        value: Moment to validate.
+        name: Name of the moment, used in the error messages.
+
+    Returns:
+        The same moment expressed in UTC.
+
+    Raises:
+        TypeError: The value is not a ``datetime``.
+        ValueError: The value has no timezone.
+    """
     if not isinstance(value, datetime):
         raise TypeError(f"{name} must be a datetime")
     if value.tzinfo is None or value.utcoffset() is None:

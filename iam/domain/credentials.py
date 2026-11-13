@@ -25,6 +25,12 @@ class ApiCredential:
     _iterations: int = field(default=_ITERATIONS, repr=False)
 
     def __post_init__(self) -> None:
+        """Reject verifier material that PBKDF2-SHA256 could not have produced.
+
+        Raises:
+            ValueError: The salt is not 16 bytes, the digest is not 32 bytes or
+                the iteration count is outside the accepted range.
+        """
         if len(self._salt) != 16 or len(self._digest) != 32:
             raise ValueError("Invalid API key verifier material")
         if not 100_000 <= self._iterations <= _MAX_ITERATIONS:
