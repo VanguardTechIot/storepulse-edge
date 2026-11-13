@@ -14,6 +14,8 @@ class BackendTelemetryClient:
         payload = {
             "deviceId": telemetry.device_id,
             "receivedAt": _iso(telemetry.received_at),
+            "supplyVoltage": telemetry.supply_voltage,
+            "bufferedEvents": telemetry.buffered_events,
             "measurements": [
                 {"type": m.type, "value": m.value, "recordedAt": _iso(m.recorded_at)}
                 for m in telemetry.measurements
