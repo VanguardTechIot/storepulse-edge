@@ -143,21 +143,25 @@ def revoke_device(device_id: str):
 
 @iam_api.errorhandler(UnsupportedMediaType)
 def _handle_unsupported_media_type(_error: UnsupportedMediaType):
+    """Answer ``415`` when the body is not sent as ``application/json``."""
     return jsonify({"error": "Content-Type must be application/json"}), 415
 
 
 @iam_api.errorhandler(ValidationError)
 def _handle_validation_error(_error: ValidationError):
+    """Answer ``400`` when the body is not valid JSON or breaks the request contract."""
     return jsonify({"error": "Invalid request payload"}), 400
 
 
 @iam_api.errorhandler(ValueError)
 def _handle_value_error(error: ValueError):
+    """Answer ``400`` when a domain invariant rejects an identifier."""
     return jsonify({"error": str(error) or "Invalid request"}), 400
 
 
 @iam_api.errorhandler(UserAuthenticationRequired)
 def _handle_authentication_required(error: UserAuthenticationRequired):
+    """Answer ``401`` with a ``WWW-Authenticate: Bearer`` challenge."""
     response = jsonify({"error": str(error)})
     response.headers["WWW-Authenticate"] = "Bearer"
     return response, 401
@@ -165,21 +169,25 @@ def _handle_authentication_required(error: UserAuthenticationRequired):
 
 @iam_api.errorhandler(UserNotAuthorized)
 def _handle_not_authorized(error: UserNotAuthorized):
+    """Answer ``403`` when the user is not a gallery administrator."""
     return jsonify({"error": str(error)}), 403
 
 
 @iam_api.errorhandler(DeviceNotFound)
 def _handle_device_not_found(error: DeviceNotFound):
+    """Answer ``404`` when no device is registered with the identifier."""
     return jsonify({"error": str(error)}), 404
 
 
 @iam_api.errorhandler(DeviceAlreadyRegistered)
 def _handle_device_already_registered(error: DeviceAlreadyRegistered):
+    """Answer ``409`` when the identifier or the platform device is already in use."""
     return jsonify({"error": str(error)}), 409
 
 
 @iam_api.errorhandler(DeviceRevoked)
 def _handle_device_revoked(error: DeviceRevoked):
+    """Answer ``409`` when the operation targets a revoked device."""
     return jsonify({"error": str(error)}), 409
 
 
