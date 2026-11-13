@@ -15,12 +15,15 @@ class TelemetryRepository:
     def _to_entity(model: TelemetryModel) -> Telemetry:
         measurements = [Measurement(m.type, m.value, _as_utc(m.recorded_at), m.id)
                         for m in model.measurements.order_by(MeasurementModel.id)]
-        return Telemetry(model.device_id, _as_utc(model.received_at), measurements, model.id, model.synced)
+        return Telemetry(model.device_id, _as_utc(model.received_at), measurements, model.id, model.synced,
+                         model.supply_voltage, model.buffered_events)
 
     def save(self, telemetry: Telemetry) -> Telemetry:
         with db.atomic():
             model = TelemetryModel.create(device_id=telemetry.device_id,
-                                          received_at=telemetry.received_at.replace(tzinfo=None))
+                                          received_at=telemetry.received_at.replace(tzinfo=None),
+                                          supply_voltage=telemetry.supply_voltage,
+                                          buffered_events=telemetry.buffered_events)
             for measurement in telemetry.measurements:
                 MeasurementModel.create(telemetry=model, type=measurement.type, value=measurement.value,
                                         recorded_at=measurement.recorded_at.replace(tzinfo=None))
