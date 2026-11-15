@@ -1,14 +1,15 @@
 import os
 import threading
 
+from analytics.interfaces.acl.analytics_context_facade import AnalyticsContextFacade
 from iam.interfaces.acl.iam_context_facade import IamContextFacade
-from shared.infrastructure.database import db
 from monitoring.application.errors import DeviceAuthenticationFailed
 from monitoring.domain.services import TelemetryService
 from monitoring.infrastructure.clients import BackendTelemetryClient
 from monitoring.infrastructure.repositories import TelemetryRepository
 from safety.application.services import SafetyRuleApplicationService
 from safety.interfaces.acl.safety_context_facade import SafetyContextFacade
+from shared.infrastructure.database import db
 
 
 class TelemetryApplicationService:
@@ -16,6 +17,7 @@ class TelemetryApplicationService:
         self.repository = TelemetryRepository()
         self.client = BackendTelemetryClient()
         self.safety_context = SafetyContextFacade()
+        self.analytics_context = AnalyticsContextFacade()
         self.iam_context = IamContextFacade()
         self.max_stored = int(os.getenv("EDGE_MAX_STORED_TELEMETRY", "10000"))
 
@@ -28,6 +30,17 @@ class TelemetryApplicationService:
         self._make_room()
         saved = self.repository.save(telemetry)
         evaluations = [self.safety_context.evaluate(m.type, m.value, m.recorded_at) for m in saved.measurements]
+        self.analytics_context.record_telemetry(
+            platform_device_id=saved.device_id,
+            received_at=saved.received_at,
+            measurements=[
+                {"type": m.type, "value": m.value, "recordedAt": m.recorded_at}
+                for m in saved.measurements
+            ],
+            evaluations=evaluations,
+            supply_voltage=saved.supply_voltage,
+            buffered_events=saved.buffered_events,
+        )
         saved.synced = self.synchronize(saved)
         return saved, evaluations
 
