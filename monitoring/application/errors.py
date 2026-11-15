@@ -1,0 +1,2 @@
+class DeviceAuthenticationFailed(Exception):
+    pass

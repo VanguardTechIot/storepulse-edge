@@ -3,3 +3,8 @@
 /.env.development
 /.env.production
 
+__pycache__/
+*.py[cod]
+/*.db
+/*.db-wal
+/*.db-shm
