@@ -9,6 +9,7 @@ services:
 - **IAM**: device API keys and the users' access tokens.
 - **Monitoring**: telemetry reception and synchronization with the REST API.
 - **Safety**: safety rules that evaluate each measurement locally.
+- **Analytics**: local telemetry aggregations, node health diagnostics, and consolidated alerts.
 
 Typical usage::
 
@@ -22,6 +23,12 @@ from pathlib import Path
 
 from flask import Flask
 
+from analytics.infrastructure.models import (
+    LocalNotificationModel,
+    NodeHealthModel,
+    SensorAggregateModel,
+)
+from analytics.interfaces.rest_services import analytics_api
 from config import load_config
 from iam.application.services import DeviceApplicationService, UserAuthenticationService
 from iam.infrastructure.models import Device
@@ -47,7 +54,15 @@ def create_app() -> Flask:
     app = Flask(__name__)
     app.config.from_mapping(load_config(Path(__file__).resolve().parent))
     configure_database(app.config["EDGE_DATABASE_PATH"])
-    init_db([Device, TelemetryModel, MeasurementModel, SafetyRuleModel])
+    init_db([
+        Device,
+        TelemetryModel,
+        MeasurementModel,
+        SafetyRuleModel,
+        SensorAggregateModel,
+        NodeHealthModel,
+        LocalNotificationModel,
+    ])
     with db.connection_context():
         upgrade_telemetry_table()
         SafetyRuleApplicationService().ensure_rules()
@@ -55,6 +70,7 @@ def create_app() -> Flask:
     app.register_blueprint(iam_api)
     app.register_blueprint(monitoring_api)
     app.register_blueprint(safety_api)
+    app.register_blueprint(analytics_api)
 
     app.extensions["iam_device_service"] = DeviceApplicationService()
     app.extensions["iam_user_authentication_service"] = UserAuthenticationService(
