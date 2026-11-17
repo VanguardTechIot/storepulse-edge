@@ -4,4 +4,4 @@ pydantic==2.13.5
 python-dotenv==1.1.1
 PyJWT==2.10.1
 requests==2.34.2
-flask-openapi==5.0.0
+flask-openapi[swagger]==5.0.0

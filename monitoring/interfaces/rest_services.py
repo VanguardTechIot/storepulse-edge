@@ -1,12 +1,57 @@
-from flask import Blueprint, jsonify, request
+from flask import jsonify, request
+from flask_openapi import APIBlueprint, Tag
 
 from monitoring.application.errors import DeviceAuthenticationFailed
 from monitoring.application.services import TelemetryApplicationService
 
-monitoring_api = Blueprint("monitoring_api", __name__)
+monitoring_api = APIBlueprint(
+    "monitoring_api",
+    __name__,
+    abp_tags=[Tag(name="Monitoring", description="Device telemetry ingestion and synchronization.")],
+)
 
 
-@monitoring_api.route("/api/v1/monitoring/telemetry", methods=["POST"])
+@monitoring_api.post(
+    "/api/v1/monitoring/telemetry",
+    summary="Submit device telemetry",
+    description="Accept telemetry from a registered node, evaluate safety rules, and synchronize or queue it.",
+    security=[{"DeviceApiKey": []}],
+    request_body={
+        "required": True,
+        "content": {
+            "application/json": {
+                "schema": {
+                    "type": "object",
+                    "required": ["deviceId", "receivedAt", "measurements"],
+                    "properties": {
+                        "deviceId": {"type": "string"},
+                        "receivedAt": {"type": "string", "format": "date-time"},
+                        "supplyVoltage": {"type": "number", "nullable": True, "minimum": 0},
+                        "bufferedEvents": {"type": "integer", "nullable": True, "minimum": 0},
+                        "measurements": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "required": ["type", "value", "recordedAt"],
+                                "properties": {
+                                    "type": {"type": "string"},
+                                    "value": {"type": "number"},
+                                    "recordedAt": {"type": "string", "format": "date-time"},
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    },
+    responses={
+        201: {"description": "Telemetry accepted and synchronized with the platform."},
+        202: {"description": "Telemetry accepted and queued for synchronization."},
+        400: {"description": "Invalid telemetry payload."},
+        401: {"description": "Missing or invalid device API key."},
+    },
+)
 def register_telemetry():
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
@@ -29,6 +74,11 @@ def register_telemetry():
     }), 201 if telemetry.synced else 202
 
 
-@monitoring_api.route("/api/v1/monitoring/synchronization", methods=["GET"])
+@monitoring_api.get(
+    "/api/v1/monitoring/synchronization",
+    summary="Get synchronization status",
+    description="Return the number of telemetry packets waiting to be synchronized.",
+    responses={200: {"description": "Current synchronization queue size."}},
+)
 def get_synchronization_status():
     return jsonify({"pending": TelemetryApplicationService().count_pending()}), 200

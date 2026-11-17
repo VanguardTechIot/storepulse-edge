@@ -1,11 +1,21 @@
-from flask import Blueprint, jsonify
+from flask import jsonify
+from flask_openapi import APIBlueprint, Tag
 
 from safety.application.services import SafetyRuleApplicationService
 
-safety_api = Blueprint("safety_api", __name__)
+safety_api = APIBlueprint(
+    "safety_api",
+    __name__,
+    abp_tags=[Tag(name="Safety", description="Locally evaluated safety rules.")],
+)
 
 
-@safety_api.route("/api/v1/safety/rules", methods=["GET"])
+@safety_api.get(
+    "/api/v1/safety/rules",
+    summary="List safety rules",
+    description="List the active safety rules used by this Edge gateway.",
+    responses={200: {"description": "Safety rules."}},
+)
 def get_safety_rules():
     rules = SafetyRuleApplicationService().get_rules()
     return jsonify([

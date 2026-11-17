@@ -21,7 +21,7 @@ Typical usage::
 import os
 from pathlib import Path
 
-from flask import Flask
+from flask_openapi import Info, OpenAPI
 
 from analytics.infrastructure.models import (
     LocalNotificationModel,
@@ -43,7 +43,7 @@ from safety.interfaces.rest_services import safety_api
 from shared.infrastructure.database import configure_database, db, init_db
 
 
-def create_app() -> Flask:
+def create_app() -> OpenAPI:
     """Create and initialize the Flask application.
 
     Configuration errors, such as a missing ``JWT_SECRET``, stop the
@@ -51,7 +51,28 @@ def create_app() -> Flask:
     loaded from the REST API, or from the standard rules when it cannot be
     reached and none are stored yet.
     """
-    app = Flask(__name__)
+    app = OpenAPI(
+        __name__,
+        info=Info(
+            title="StorePulse Edge API",
+            version="1.0.0",
+            description="Local gateway API for device telemetry, safety rules, and edge analytics.",
+        ),
+        security_schemes={
+            "BearerAuth": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "JWT",
+                "description": "Access token issued by the StorePulse platform.",
+            },
+            "DeviceApiKey": {
+                "type": "apiKey",
+                "in": "header",
+                "name": "X-API-Key",
+                "description": "API key issued by the Edge gateway for a registered device.",
+            },
+        },
+    )
     app.config.from_mapping(load_config(Path(__file__).resolve().parent))
     configure_database(app.config["EDGE_DATABASE_PATH"])
     init_db([
@@ -67,10 +88,10 @@ def create_app() -> Flask:
         upgrade_telemetry_table()
         SafetyRuleApplicationService().ensure_rules()
 
-    app.register_blueprint(iam_api)
-    app.register_blueprint(monitoring_api)
-    app.register_blueprint(safety_api)
-    app.register_blueprint(analytics_api)
+    app.register_api(iam_api)
+    app.register_api(monitoring_api)
+    app.register_api(safety_api)
+    app.register_api(analytics_api)
 
     app.extensions["iam_device_service"] = DeviceApplicationService()
     app.extensions["iam_user_authentication_service"] = UserAuthenticationService(

@@ -142,6 +142,32 @@ class AnalyticsApiIntegrationTest(unittest.TestCase):
         self.assertEqual(ack_resp.status_code, 200)
         self.assertEqual(ack_resp.get_json()["status"], "ACKNOWLEDGED")
 
+    def test_openapi_documents_routes_and_authentication_schemes(self) -> None:
+        response = self.client.get("/openapi/openapi.json")
+
+        self.assertEqual(response.status_code, 200)
+        document = response.get_json()
+        self.assertIn("/api/v1/monitoring/telemetry", document["paths"])
+        self.assertIn("/api/v1/iam/devices", document["paths"])
+        self.assertIn("BearerAuth", document["components"]["securitySchemes"])
+        self.assertIn("DeviceApiKey", document["components"]["securitySchemes"])
+        telemetry = document["paths"]["/api/v1/monitoring/telemetry"]["post"]
+        self.assertEqual(telemetry["security"], [{"DeviceApiKey": []}])
+        self.assertTrue(telemetry["requestBody"]["required"])
+        notifications = document["paths"]["/api/v1/analytics/notifications"]["get"]
+        self.assertIn(
+            "platformDeviceId",
+            {parameter["name"] for parameter in notifications["parameters"]},
+        )
+        rotation = document["paths"]["/api/v1/iam/devices/{device_id}/api-keys"]["post"]
+        self.assertEqual(rotation["parameters"][0]["name"], "device_id")
+
+    def test_swagger_ui_is_available(self) -> None:
+        response = self.client.get("/openapi/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"swagger", response.data.lower())
+
 
 if __name__ == "__main__":
     unittest.main()
