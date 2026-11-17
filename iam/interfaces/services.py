@@ -11,7 +11,8 @@ route requires and maps results and errors to HTTP responses.
 
 from datetime import datetime
 
-from flask import Blueprint, Response, current_app, jsonify, request
+from flask import Response, current_app, jsonify, request
+from flask_openapi import APIBlueprint, Tag
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from werkzeug.exceptions import UnsupportedMediaType
 
@@ -25,7 +26,11 @@ from iam.domain.entities import Device
 from iam.domain.errors import DeviceRevoked
 from iam.domain.value_objects import AuthenticatedUser, DeviceType
 
-iam_api = Blueprint("iam_api", __name__)
+iam_api = APIBlueprint(
+    "iam_api",
+    __name__,
+    abp_tags=[Tag(name="IAM", description="Device registration and authentication.")],
+)
 
 _BEARER_PREFIX = "Bearer "
 
@@ -48,7 +53,37 @@ class DeviceRegistrationRequest(BaseModel):
     platform_device_id: int = Field(..., gt=0, description="Identifier of the IoT device in the REST API.")
 
 
-@iam_api.route("/api/v1/iam/authentications", methods=["POST"])
+class DevicePath(BaseModel):
+    """Path parameters for device lifecycle operations."""
+
+    device_id: str = Field(..., min_length=1, max_length=64, description="Hardware identifier of the node.")
+
+
+@iam_api.post(
+    "/api/v1/iam/authentications",
+    summary="Authenticate a device",
+    description="Validate a registered device's identifier and API key.",
+    security=[{"DeviceApiKey": []}],
+    request_body={
+        "required": True,
+        "content": {
+            "application/json": {
+                "schema": {
+                    "type": "object",
+                    "required": ["device_id"],
+                    "properties": {
+                        "device_id": {"type": "string", "minLength": 1, "maxLength": 64},
+                    },
+                },
+            },
+        },
+    },
+    responses={
+        200: {"description": "Device authenticated."},
+        400: {"description": "Invalid request payload."},
+        401: {"description": "Missing or invalid device API key."},
+    },
+)
 def authenticate_device():
     """Authenticate a node with its identifier and API key (MS-02).
 
@@ -75,7 +110,44 @@ def authenticate_device():
     }), 200
 
 
-@iam_api.route("/api/v1/iam/devices", methods=["POST"])
+@iam_api.post(
+    "/api/v1/iam/devices",
+    summary="Register a device",
+    description="Register a node and issue its one-time API key. Administrator access is required.",
+    security=[{"BearerAuth": []}],
+    request_body={
+        "required": True,
+        "content": {
+            "application/json": {
+                "schema": {
+                    "type": "object",
+                    "required": ["device_id", "device_type", "platform_device_id"],
+                    "properties": {
+                        "device_id": {"type": "string", "minLength": 1, "maxLength": 64},
+                        "device_type": {
+                            "type": "string",
+                            "enum": [
+                                "INTRUSION_NODE",
+                                "CAMERA_NODE",
+                                "SMOKE_NODE",
+                                "CONSUMPTION_NODE",
+                                "COMMON_AREA_NODE",
+                            ],
+                        },
+                        "platform_device_id": {"type": "integer", "minimum": 1},
+                    },
+                },
+            },
+        },
+    },
+    responses={
+        201: {"description": "Device registered; the API key is returned once."},
+        400: {"description": "Invalid request payload."},
+        401: {"description": "Missing or invalid administrator token."},
+        403: {"description": "Administrator role required."},
+        409: {"description": "Device or platform device is already registered."},
+    },
+)
 def register_device():
     """Register a node and issue its API key. Gallery administrator only.
 
@@ -100,7 +172,17 @@ def register_device():
     return _with_api_key(device, api_key, 201)
 
 
-@iam_api.route("/api/v1/iam/devices", methods=["GET"])
+@iam_api.get(
+    "/api/v1/iam/devices",
+    summary="List registered devices",
+    description="List devices registered in this Edge gateway. Administrator access is required.",
+    security=[{"BearerAuth": []}],
+    responses={
+        200: {"description": "Registered devices; API keys are never included."},
+        401: {"description": "Missing or invalid administrator token."},
+        403: {"description": "Administrator role required."},
+    },
+)
 def list_devices():
     """List the registered devices, the most recent first. Gallery administrator only.
 
@@ -112,8 +194,20 @@ def list_devices():
     return jsonify([_device_resource(device) for device in _device_service().list_devices(operator)]), 200
 
 
-@iam_api.route("/api/v1/iam/devices/<device_id>/api-keys", methods=["POST"])
-def rotate_api_key(device_id: str):
+@iam_api.post(
+    "/api/v1/iam/devices/<device_id>/api-keys",
+    summary="Rotate a device API key",
+    description="Issue a new API key and immediately invalidate the previous key.",
+    security=[{"BearerAuth": []}],
+    responses={
+        201: {"description": "New API key issued and returned once."},
+        401: {"description": "Missing or invalid administrator token."},
+        403: {"description": "Administrator role required."},
+        404: {"description": "Device not found."},
+        409: {"description": "Device has been revoked."},
+    },
+)
+def rotate_api_key(path: DevicePath):
     """Issue a new API key for an active device (SP-06). Gallery administrator only.
 
     The previous key stops working immediately.
@@ -124,12 +218,24 @@ def rotate_api_key(device_id: str):
         administrator; ``404`` for an unknown device; ``409`` for a revoked one.
     """
     operator = _authenticated_user()
-    device, api_key = _device_service().rotate_api_key(device_id, operator)
+    device, api_key = _device_service().rotate_api_key(path.device_id, operator)
     return _with_api_key(device, api_key, 201)
 
 
-@iam_api.route("/api/v1/iam/devices/<device_id>/revocation", methods=["POST"])
-def revoke_device(device_id: str):
+@iam_api.post(
+    "/api/v1/iam/devices/<device_id>/revocation",
+    summary="Revoke a device",
+    description="Permanently revoke a device's access. Administrator access is required.",
+    security=[{"BearerAuth": []}],
+    responses={
+        200: {"description": "Device revoked."},
+        401: {"description": "Missing or invalid administrator token."},
+        403: {"description": "Administrator role required."},
+        404: {"description": "Device not found."},
+        409: {"description": "Device was already revoked."},
+    },
+)
+def revoke_device(path: DevicePath):
     """Withdraw the access of a device permanently. Gallery administrator only.
 
     Responses:
@@ -138,7 +244,7 @@ def revoke_device(device_id: str):
         unknown device; ``409`` when it was already revoked.
     """
     operator = _authenticated_user()
-    return jsonify(_device_resource(_device_service().revoke_device(device_id, operator))), 200
+    return jsonify(_device_resource(_device_service().revoke_device(path.device_id, operator))), 200
 
 
 @iam_api.errorhandler(UnsupportedMediaType)

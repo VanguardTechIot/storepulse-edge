@@ -2,7 +2,9 @@
 
 from datetime import datetime
 
-from flask import Blueprint, current_app, jsonify, request
+from flask import current_app, jsonify, request
+from flask_openapi import APIBlueprint, Tag
+from pydantic import BaseModel, ConfigDict, Field
 
 from analytics.application.errors import (
     AnalyticsDeviceNotFound,
@@ -19,12 +21,58 @@ from analytics.interfaces.acl.analytics_context_facade import AnalyticsContextFa
 from iam.application.errors import UserAuthenticationRequired, UserNotAuthorized
 from iam.domain.value_objects import AuthenticatedUser
 
-analytics_api = Blueprint("analytics_api", __name__)
+analytics_api = APIBlueprint(
+    "analytics_api",
+    __name__,
+    abp_tags=[Tag(name="Analytics", description="Local telemetry summaries, device health, and notifications.")],
+)
 
 _BEARER_PREFIX = "Bearer "
 
 
-@analytics_api.route("/api/v1/analytics/overview", methods=["GET"])
+class DeviceAnalyticsPath(BaseModel):
+    """Path parameters for a device analytics request."""
+
+    platform_device_id: int = Field(..., gt=0, description="IoT device ID in StorePulse platform.")
+
+
+class NotificationPath(BaseModel):
+    """Path parameters for acknowledging a notification."""
+
+    notification_id: int = Field(..., gt=0, description="Local Edge notification ID.")
+
+
+class NotificationQuery(BaseModel):
+    """Optional filters for local Edge notifications."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    status: str | None = Field(
+        default=None,
+        json_schema_extra={"enum": ["ACTIVE", "ACKNOWLEDGED"]},
+    )
+    category: str | None = Field(
+        default=None,
+        json_schema_extra={"enum": ["SAFETY", "DEVICE_HEALTH"]},
+    )
+    platform_device_id: str | None = Field(
+        default=None,
+        alias="platformDeviceId",
+        description="Filter by StorePulse platform device ID.",
+        json_schema_extra={"pattern": "^[1-9][0-9]*$"},
+    )
+
+
+@analytics_api.get(
+    "/api/v1/analytics/overview",
+    summary="Get gallery analytics overview",
+    description="Return local telemetry totals, notifications, and device health counts.",
+    security=[{"BearerAuth": []}],
+    responses={
+        200: {"description": "Gallery-wide analytics summary."},
+        401: {"description": "Missing or invalid access token."},
+    },
+)
 def get_analytics_overview():
     """Return gallery-wide local analytics and device health indicators."""
     _authenticated_user()
@@ -43,13 +91,23 @@ def get_analytics_overview():
     }), 200
 
 
-@analytics_api.route("/api/v1/analytics/devices/<int:platform_device_id>", methods=["GET"])
-def get_device_analytics(platform_device_id: int):
+@analytics_api.get(
+    "/api/v1/analytics/devices/<int:platform_device_id>",
+    summary="Get device analytics",
+    description="Return local telemetry aggregates, node health, and active alerts for a device.",
+    security=[{"BearerAuth": []}],
+    responses={
+        200: {"description": "Device analytics summary."},
+        401: {"description": "Missing or invalid access token."},
+        404: {"description": "Device analytics not found."},
+    },
+)
+def get_device_analytics(path: DeviceAnalyticsPath):
     """Return local telemetry aggregates, node health, and active alerts for a device."""
     _authenticated_user()
-    if platform_device_id <= 0:
+    if path.platform_device_id <= 0:
         raise ValueError("platformDeviceId must be a positive integer")
-    summary = AnalyticsContextFacade().get_device_summary(platform_device_id)
+    summary = AnalyticsContextFacade().get_device_summary(path.platform_device_id)
     return jsonify({
         "platformDeviceId": summary.platform_device_id,
         "health": None if summary.health is None else _health_resource(summary.health),
@@ -60,14 +118,23 @@ def get_device_analytics(platform_device_id: int):
     }), 200
 
 
-@analytics_api.route("/api/v1/analytics/notifications", methods=["GET"])
-def list_analytics_notifications():
+@analytics_api.get(
+    "/api/v1/analytics/notifications",
+    summary="List notifications",
+    description="List local Edge notifications, optionally filtered by status, category, or platform device.",
+    security=[{"BearerAuth": []}],
+    responses={
+        200: {"description": "Matching notifications."},
+        400: {"description": "Invalid filter value."},
+        401: {"description": "Missing or invalid access token."},
+    },
+)
+def list_analytics_notifications(query: NotificationQuery):
     """List consolidated Edge notifications with optional status, device, and category filters."""
     _authenticated_user()
-    status = _parse_enum(request.args.get("status"), NotificationStatus, "status")
-    category = _parse_enum(request.args.get("category"), NotificationCategory, "category")
-    device_param = request.args.get("platformDeviceId")
-    platform_device_id = _parse_positive_int(device_param, "platformDeviceId")
+    status = _parse_enum(query.status, NotificationStatus, "status")
+    category = _parse_enum(query.category, NotificationCategory, "category")
+    platform_device_id = _parse_positive_int(query.platform_device_id, "platformDeviceId")
 
     notifications = AnalyticsContextFacade().list_notifications(
         status=status,
@@ -77,15 +144,26 @@ def list_analytics_notifications():
     return jsonify([_notification_resource(item) for item in notifications]), 200
 
 
-@analytics_api.route("/api/v1/analytics/notifications/<int:notification_id>/acknowledge", methods=["POST"])
-def acknowledge_analytics_notification(notification_id: int):
+@analytics_api.post(
+    "/api/v1/analytics/notifications/<int:notification_id>/acknowledge",
+    summary="Acknowledge a notification",
+    description="Acknowledge an active local Edge notification. Administrator access is required.",
+    security=[{"BearerAuth": []}],
+    responses={
+        200: {"description": "Notification acknowledged."},
+        401: {"description": "Missing or invalid access token."},
+        403: {"description": "Administrator role required."},
+        404: {"description": "Notification not found."},
+    },
+)
+def acknowledge_analytics_notification(path: NotificationPath):
     """Acknowledge a local Edge notification. Gallery administrator only."""
     operator = _authenticated_user()
     if not operator.can_manage_devices():
         raise UserNotAuthorized("Only the gallery administrator may acknowledge notifications")
-    if notification_id <= 0:
+    if path.notification_id <= 0:
         raise ValueError("notificationId must be a positive integer")
-    updated = AnalyticsContextFacade().acknowledge_notification(notification_id)
+    updated = AnalyticsContextFacade().acknowledge_notification(path.notification_id)
     return jsonify(_notification_resource(updated)), 200
 
 

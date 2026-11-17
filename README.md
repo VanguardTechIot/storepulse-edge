@@ -12,7 +12,7 @@ Edge gateway API of **StorePulse**, the IoT platform of VanguardTech for commerc
 
 ## Stack
 
-- Python 3, Flask 3.1 (REST blueprints).
+- Python 3, Flask 3.1 and Flask OpenAPI (REST blueprints and interactive API documentation).
 - Peewee ORM 4.5 over local SQLite (`storepulse_edge.db`), configured for WAL/concurrency.
 - Pydantic 2.13 for request payload validation.
 - PyJWT 2.10 for verifying user JWT access tokens issued by `storepulse-platform`.
@@ -27,6 +27,13 @@ python main.py                     # http://0.0.0.0:5000 (runs background sync t
 flask --app main run               # HTTP server only, without background sync
 python -m unittest discover -s test
 ```
+
+With the server running, open `http://127.0.0.1:5000/openapi/` for the
+interactive Swagger UI. The OpenAPI document is available at
+`http://127.0.0.1:5000/openapi/openapi.json`. Use the **BearerAuth** scheme
+for administrator and analytics endpoints, and **DeviceApiKey** for device
+authentication and telemetry. The documentation UI is intended for local
+development and should not be exposed publicly without access controls.
 
 | Variable | Purpose |
 |---|---|
